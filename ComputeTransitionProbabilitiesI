@@ -1,0 +1,318 @@
+function P = ComputeTransitionProbabilitiesI( stateSpace, controlSpace, disturbanceSpace, mazeSize, walls, targetCell )
+% COMPUTETRANSITIONPROBABILITIESI Compute transition probabilities.
+% 	Compute the transition probabilities between all states in the state
+%   space for all attainable control inputs.
+%
+%
+%   
+%
+%   P = ComputeTransitionProbabilitiesI(stateSpace, controlSpace,
+%   disturbanceSpace, mazeSize, walls, targetCell) computes the transition
+%   probabilities between all states in the state space for all attainable
+%   control inputs.
+%
+%   Input arguments:
+%
+%       stateSpace:
+%           A (MN x 2) matrix, where the i-th row represents the i-th
+%           element of the state space. Note that the state space also
+%           contains the target cell, in order to simplify state indexing.
+%
+%       controlSpace:
+%           A (L x 2) matrix, where the l-th row represents the l-th
+%           element of the control space.
+%
+%       disturbanceSpace:
+%           A (S x 3) matrix 'disturbanceSpace', where the first two
+%           columns of each row represent an element of the disturbance
+%           space, and the third column represents the corresponding
+%           probability.
+%
+%       mazeSize:
+%           A (1 x 2) matrix containing the width and the height of the
+%           maze in number of cells.
+%
+%   	walls:
+%          	A (2 x 2K) matrix containing the K wall segments, where the start
+%        	and end point of the k-th segment are stored in column 2k-1
+%         	and 2k, respectively.
+%
+%    	targetCell:
+%          	A (2 x 1) matrix describing the position of the target cell in
+%         	the maze.
+%
+%   Output arguments:
+%
+%       P:
+%           A (MN x MN x L) matrix containing the transition probabilities
+%           between all states in the state space for all attainable
+%           control inputs. The entry P(i, j, l) represents the transition
+%           probability from state i to state j if control input l is
+%           applied.
+
+% put your code here
+%% preparation for calculations
+mazeSize_N = mazeSize(1);
+mazeSize_M = mazeSize(2);
+[number_of_states,~] = size(stateSpace);
+[length_controlSpace,~] = size(controlSpace);
+[length_disturbanceSpace,~] = size(disturbanceSpace);
+
+%% reachability of control inputs and disturbances
+% reachable_control_logi is a NM x L matrix, the row index is the 
+% state numbers, the column index gives logical informations about 
+% reachabilty of the corresponding control inputs.
+reachable_control_logi = zeros(number_of_states, length_controlSpace); 
+% reachable_disturb_logi is a NM x S matrix, the row index is the 
+% state numbers, the column index gives logical informations about 
+% reachabilty of the corresponding disturbances.
+reachable_disturb_logi = zeros(number_of_states, length_disturbanceSpace); 
+
+% determine the reachable steps around each cell by control inputs and
+% disturbances
+for  i_co = 1:number_of_states
+    % get the coordinates from the index information
+    i_coordinate = stateSpace(i_co,:);
+    % for every cell loop create a 1x13 reachablity vector
+    reachable_control_single = zeros(1,13);
+    reachable_disturb_single = zeros(1,5);
+        
+    % reachability check for control input (-2,0), "left and left"
+    i_coordinate_on_wall = i_coordinate(1) < 3; %  too close to left wall
+    % outer potential wall piece existence check
+    wall_check_1_1 = [i_coordinate(1)-2,i_coordinate(2)-1]'; % lower point
+    wall_check_1_2 = [i_coordinate(1)-2,i_coordinate(2)]'; % upper point
+    % check if there is a wall piece consisting of these two points
+    wall_check_1_logi = wallCheckTwoPoints(wall_check_1_1,wall_check_1_2, walls);
+    % inner potential wall piece existence check
+    wall_check_2_1 = [i_coordinate(1)-1,i_coordinate(2)-1]'; % lower point
+    wall_check_2_2 = [i_coordinate(1)-1,i_coordinate(2)]'; % upper point
+    % check if there is a wall piece consisting of these two points
+    wall_check_2_logi = wallCheckTwoPoints(wall_check_2_1,wall_check_2_2, walls);
+    % find the index of the input (-2,0)
+    index_corresponding_control_input = ismember(controlSpace,[-2,0],'rows');
+    % when these are true: not too close to the left wall, no wall pieces
+    % inbetween, the control input (-2,0) could be used, otherwise not.
+    condition_logi = ~i_coordinate_on_wall && ~wall_check_1_logi && ~wall_check_2_logi;
+    if condition_logi
+        reachable_control_single(index_corresponding_control_input) = 1;
+    end
+    
+    %
+... other 2-step movements including "down and down", "up and up", "right and right", "up and right", " up and left" ...
+%
+
+
+    
+    % reachability check for control input (-1,0) "left"
+    i_coordinate_on_wall = i_coordinate(1) ==1; %  on the to left wall
+    % potential wall piece existence check
+    wall_check_1 = [i_coordinate(1)-1,i_coordinate(2)-1]'; % lower point
+    wall_check_2 = [i_coordinate(1)-1,i_coordinate(2)]'; % upper point
+    % check if there is a wall piece consisting of these two points
+    wall_check_logi = wallCheckTwoPoints(wall_check_1,wall_check_2, walls);
+    % find the index of the input (-1,0)
+    index_corresponding_control_input = ismember(controlSpace,[-1,0],'rows');
+    % when these are true: not on the left wall, no wall pieces
+    % inbetween, the control input (-1,0) could be used, otherwise not.
+    condition_logi = ~i_coordinate_on_wall && ~wall_check_logi;
+    if condition_logi
+        reachable_control_single(index_corresponding_control_input) = 1;
+    end
+    % find the index of the disturb input (-1,0)
+    index_corresponding_disturb_input = ismember(disturbanceSpace(:,1:2),[-1,0],'rows');
+    % if the control input could be used, the disturbance input as well,
+    % otherwise not
+    if condition_logi
+        reachable_disturb_single(index_corresponding_disturb_input) = 1;
+    end
+    
+
+    
+    %
+... other 1-step movements including "up", "right", "down", ...
+%
+
+
+    
+    % reachability for control input (0,0), "keep staying"
+    % find the index of the input (0,0)
+    index_corresponding_control_input = ismember(controlSpace,[0,0],'rows');
+    % find the index of the disturb input (0,0)
+    index_corresponding_disturb_input = ismember(disturbanceSpace(:,1:2),[0,0],'rows');
+    % the control and disturbance input (0,0) can always be used.
+    reachable_control_single(index_corresponding_control_input) = 1;
+    reachable_disturb_single(index_corresponding_disturb_input) = 1;
+    
+    % write the control reachability of the single point to the 
+    % reachability matrix
+    reachable_control_logi(i_co,:) = logical(reachable_control_single);   
+    % write the disturb reachability of the single point to the 
+    % reachability matrix
+    reachable_disturb_logi(i_co,:) = logical(reachable_disturb_single);
+
+   
+
+end
+
+%% transition probabilities matrix
+P = zeros(number_of_states, number_of_states, length_controlSpace);
+for i_co =  1:number_of_states
+    % get the coordinates from the index information
+    i_coordinate = stateSpace(i_co,:);
+    % consider every possible control input
+    for i_control = 1:length_controlSpace
+        % check if the control input allowed for this state
+        if reachable_control_logi(i_co,i_control) ~= 0
+            % if the control input is allowed, get the coordinates of the
+            % new state after the control input is used.
+            state_coordinate_controlled = i_coordinate + controlSpace(i_control,:);
+            % find the corresponding index of the new state
+            state_index_controlled = find(ismember(stateSpace,state_coordinate_controlled,'rows'));
+            % get the informations about the allowed disturbances on the
+            % new state. <shortForm> is used for a better representation.
+            shortForm = reachable_disturb_logi(state_index_controlled,:)';
+            % combine into one vector
+            reachable_disturb_multi = [shortForm,shortForm,shortForm];
+            % allowed disturbance with probabilities
+            disturb_input_accessible = reachable_disturb_multi.* disturbanceSpace;
+            state_coordinate_controlled_multi = [];
+            shortForm = state_coordinate_controlled;
+            for i_number_disturb = 1:length_disturbanceSpace
+                state_coordinate_controlled_multi = [state_coordinate_controlled_multi;shortForm];
+            end
+            % possible states after this control inputs and allowed
+            % disturbances without probability correction, i.e. if there is
+            % a wall piece around the new state, the probability of having
+            % a disturbanced of [0 0]' is not increased yet, which should
+            % be the case actually.
+            state_coordinate_controlled_disturbed_prob = ...
+                ([state_coordinate_controlled_multi,...
+                zeros(length_disturbanceSpace,1)] +disturb_input_accessible)...
+                .*reachable_disturb_multi;
+            % find the disturbance [0 0] in the disturbance space.
+            index_disturb_input_0_0 = find(ismember(disturbanceSpace(:,1:2),[0,0],'rows'));
+            % get the original probability of the disturbance [0 0], which
+            % would be incresed onces other disturbances are not allowed
+            prob_disturb_0_0 = state_coordinate_controlled_disturbed_prob(index_disturb_input_0_0,3);
+            % get the summation of the probability of the disturbances, 
+            % which are not allowed.
+            prob_disturb_unaccessible = (1-sum(state_coordinate_controlled_disturbed_prob(:,3)));
+            % calculate the possible states after control inputs and
+            % disturbances with corrected probabilities
+            state_coordinate_controlled_disturbed_prob(index_disturb_input_0_0,3) ...
+                = prob_disturb_0_0 + prob_disturb_unaccessible;
+            % calculate the possible states after control inputs and
+            % disturbances without probabilities
+            state_coordinate_controlled_disturbed = state_coordinate_controlled_disturbed_prob(:,1:2);
+            % convert the coordinate information to index information
+            state_index_controlled_disturbed = zeros(length_disturbanceSpace,1);
+            for i_number_disturb = 1:length_disturbanceSpace
+                state_coordinate_temporary = state_coordinate_controlled_disturbed(i_number_disturb,:);
+                state_index_controlled = find(ismember(stateSpace,state_coordinate_temporary,'rows'));
+                if ~isempty(state_index_controlled)
+                state_index_controlled_disturbed(i_number_disturb) = state_index_controlled;
+                end
+            end
+            % new state with index information and probabilities
+            state_index_controlled_disturbed_prob = ...
+                [state_index_controlled_disturbed,...
+                state_coordinate_controlled_disturbed_prob(:,3)];
+            % write the probabilities to the <P> matrix
+            for i_number_disturb = 1:length_disturbanceSpace
+                if state_index_controlled_disturbed(i_number_disturb) ~= 0
+                    P(i_co, state_index_controlled_disturbed(i_number_disturb),i_control) = ...
+                        state_index_controlled_disturbed_prob(i_number_disturb,2);
+                end                
+            end            
+        end        
+    end
+end
+% correct the movement possible when the ball is already in the target.
+% The ball can not move anymore once it arrives at the target cell after
+% the contorl input and disturbance.
+% find at first the index of the input (0,0)
+index_control_input_0_0 = ismember(controlSpace,[0,0],'rows');
+index_target = find(ismember(stateSpace,targetCell','rows'));
+P(index_target,:,:) = 0;
+P(index_target,index_target,index_control_input_0_0) = 1;
+
+% for you informations:
+% find the possible transition knodes with probabilities:
+% for example: the 43th knode with 5th input.
+% [find(P(43,:,5));P(43,find(P(43,:,5)),5)]
+end
+
+
+%% given subfunctions
+function  even = pickTheEven(nonEven)
+% pick out the even value of the given <nonEdd> vector
+nonEven_length = length(nonEven);
+even = [];
+j =1;
+for i = 1:nonEven_length
+    if mod(nonEven(i),2) == 0
+        even(j) = nonEven(i);
+        j = j+1;
+    end
+end
+even = even';
+end
+function  odd = pickTheOdd(nonOdd)
+% pick out the odd value of the given <nonOdd> vector
+nonOdd_length = length(nonOdd);
+odd = [];
+j =1;
+for i = 1:nonOdd_length
+    if mod(nonOdd(i),2) ~= 0
+        odd(j) = nonOdd(i);
+        j = j+1;
+    end
+end
+odd = odd';
+end
+function ja_oder_nein  = wallCheckOnePoint( point, walls )
+% given one point as 2x1 matrices and 2x2K walls matrix, check if there
+% exists any wall piece starting or ending at this point.
+% check if the coordinates of corner point are in the <walls> matrix.
+ismember_wall_check_corner = ismember(walls',point','rows');
+% how often the point appears in the <walls> matrix.
+index_ismember_wall_check_corner = sum(ismember_wall_check_corner);
+% logical output:
+% 1 means there is at least one wall piece containing this point
+% 0 means there no wall piece having this point
+ja_oder_nein = logical(index_ismember_wall_check_corner);    
+end
+function [ ja_oder_nein ] = wallCheckTwoPoints( point_1, point_2, walls)
+% given two points as 2x1 matrices and 2x2K walls matrix, check if there
+% exists a wall piece consisting of these two points.
+%
+% find which points in the <walls> matrix correspond to the first point
+ismember_wall_check_1 = ismember(walls',point_1','rows');
+% find where the first point in the <wall> matrix
+index_ismember_wall_check_1 = find(ismember_wall_check_1);
+% do the same for the second point
+ismember_wall_check_2 = ismember(walls',point_2','rows');
+index_ismember_wall_check_2 = find(ismember_wall_check_2);
+% exclude those points which cannot be the begin of one wall piece
+index_ismember_wall_check_1_odd = pickTheOdd(index_ismember_wall_check_1);
+% exclude those points which cannot be the end of one wall piece
+index_ismember_wall_check_2_even = pickTheEven(index_ismember_wall_check_2);
+% check if there is any wall piece out of all possible combinations of
+% the potential points
+index_ismember_wall_check_2_even_odd = index_ismember_wall_check_2_even - 1;
+num_wall_check_1 = length(index_ismember_wall_check_1_odd);
+num_wall_check_2 = length(index_ismember_wall_check_2_even);
+sum_matched = 0;
+for i_check = 1:num_wall_check_1
+    for j_check = 1:num_wall_check_2
+        if index_ismember_wall_check_1_odd(i_check) == index_ismember_wall_check_2_even_odd(j_check)
+                sum_matched = sum_matched + 1;
+        end
+    end
+end
+% logical output:
+% 1 means there is a wall piece of these two points
+% 0 means there no wall pieces of these two points
+ja_oder_nein = logical(sum_matched);
+end

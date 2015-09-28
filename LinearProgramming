@@ -1,0 +1,109 @@
+function [ J_opt, u_opt_ind ] = LinearProgramming( P, G )
+%LINEARPROGRAMMING Value iteration
+%   Solve a stochastic shortest path problem by linear programming.
+%
+%
+%
+%   [J_opt, u_opt_ind] = LinearProgramming(P, G) computes the optimal cost
+%   and the optimal control input for each state of the state space.
+%
+%   Input arguments:
+%
+%       P:
+%           A (MN x MN x L) matrix containing the transition probabilities
+%           between all states in the state space for all attainable
+%           control inputs. The entry P(i, j, l) represents the transition
+%           probability from state i to state j if control input l is
+%           applied.
+%
+%       G:
+%           A (MN x L) matrix containing the stage costs of all states in
+%           the state space for all attainable control inputs. The entry
+%           G(i, l) represents the cost if we are in state i and apply
+%           control input l.
+%
+%   Output arguments:
+%
+%       J_opt:
+%       	A (1 x MN) matrix containing the optimal cost-to-go for each
+%       	element of the state space.
+%
+%       u_opt_ind:
+%       	A (1 x MN) matrix containing the indices of the optimal control
+%       	inputs for each element of the state space.
+
+% put your code here
+[number_of_states,~,~] = size(P);
+[~,number_of_controls] = size(G);
+% initialize the inputs of the MATLAB function <linprog>
+f = (-1)*ones(number_of_states-1,1);
+% initialize the matrix for linear inequality constraints.
+Aineq = [];
+% initialize the vector for linear inequality constraints
+bineq = [];
+% initialize the vector of lower bounds
+lb = zeros(number_of_states-1,1);
+% find the index of the target cell
+[index_target,~] = find(G==0);
+% find the control input [0,0]
+index_control_input_0_0 = find(sum(G==0));
+% delete the row and column of the target cell in the P and G matrix in
+% order to avoid the singularity of the (I - P*J) matrix.
+P(index_target,:,:) = [];
+P(:,index_target,:) = [];
+G(index_target,:) = [];
+% initialize the cost-to-go matrix and optimal control strategy matrix
+J_opt = zeros(number_of_states,1);
+u_opt_ind_2 = zeros(number_of_states-1,2);
+u_opt_ind = zeros(number_of_states,1);
+state_control_matrix = [];
+for  i_state = 1: number_of_states-1
+    for i_control = 1:number_of_controls
+        % only when take feasible control inputs in consideration
+        if G(i_state,i_control) ~= Inf
+            Aineq_loop = (-1)*P(i_state,:,i_control);
+            % "-1" considers the identity matrix
+            Aineq_loop(i_state) = Aineq_loop(i_state) + 1;
+            % bineq vector
+            bineq_loop = G(i_state,i_control);
+            Aineq = [Aineq; Aineq_loop];
+            bineq = [bineq; bineq_loop];
+            % preparation for the searching of the optimal control inputs.
+            state_control_matrix = [state_control_matrix;[i_state i_control]];
+        end
+    end
+end
+% apply the linear programming algorithm from MATLAB
+J_opt_2 = linprog(f,Aineq,bineq,[],[],lb);
+% correct the optimal cost-to-go  for the target cell. The cost at
+% the target cell has always the least value.
+J_opt(1:index_target-1) = J_opt_2(1:index_target-1);
+J_opt(index_target) = min(J_opt_2);
+J_opt(index_target+1:end) = J_opt_2(index_target:end);
+% calculation for searching the optimal control inputs, which minimize the
+% summation of all the cost-to-go
+backwarts_calculatation = Aineq * J_opt_2 - bineq;
+% number of the equations in the linear programming algorithm
+length_backwarts_calculatation = length(backwarts_calculatation);
+% control inputs in the algorithm and the residual of 
+% [Aineq * J_opt_2 - bineq]
+state_control_matrix_residual = [state_control_matrix, backwarts_calculatation];
+j = 1;
+for i = 1 : length_backwarts_calculatation
+    % search for the control inputs that make the residual to zero. These
+    % control inputs are optimal control inputs.
+    if abs(backwarts_calculatation(i)) < 1e-5 && state_control_matrix_residual(i,1) == j;
+        % write them into the optimal vector.
+        u_opt_ind_2(j,:) = [state_control_matrix_residual(i,1),state_control_matrix(i,2)];
+        j = j + 1;
+    end
+end
+
+% correct the optimal control strategies for the target cell. The control
+% input at the target cell is always the [0,0]. 
+u_opt_ind_2(:,1) = [];
+u_opt_ind(1:index_target-1) = u_opt_ind_2(1:index_target-1);
+u_opt_ind(index_target) = index_control_input_0_0;
+u_opt_ind(index_target+1:end) = u_opt_ind_2(index_target:end);
+end
+
